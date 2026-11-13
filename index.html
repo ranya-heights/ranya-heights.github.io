@@ -204,15 +204,20 @@ header .brand img,.site-footer .footer-brand img{background:transparent!importan
 #quickSearch #quickForm #salesHint{color:#f1f6f2}
 #quickSearch #qsError{color:#fff0cb}
 </style><style>#waOptions{width:100%}#waOptions summary{display:list-item;cursor:pointer;background:#185643;color:white;padding:12px 16px;border-radius:10px}#waOptions>div{padding:12px;background:#f2f6f2;border-radius:10px}#waOptions textarea{display:block;margin:8px 0;width:100%;min-height:5em;padding:8px;font:inherit;box-sizing:border-box}#waOptions :is(a,button){display:inline-block;margin:3px}#waOptions small{display:block}</style><style>
-@font-face{font-family:Rudaw;src:url("rudaw-regular.woff") format("woff");font-weight:400;font-display:swap}
-@font-face{font-family:Rudaw;src:url("rudaw-bold.woff") format("woff");font-weight:600 900;font-display:swap}
-:root{--reading-font:Rudaw,Tahoma,Arial,sans-serif}
+@font-face{font-family:SoraniNoto;src:url("sorani-regular.woff") format("woff");font-weight:400;font-display:swap}
+@font-face{font-family:SoraniNoto;src:url("sorani-bold.woff") format("woff");font-weight:600 900;font-display:swap}
+:root{--reading-font:SoraniNoto,Tahoma,Arial,sans-serif}
 body{font-family:var(--reading-font);font-size:18px}
 .hero p{font-size:clamp(17px,1.5vw,21px);line-height:1.85}
 button,input,select,textarea{font-family:var(--reading-font)}
 #quickForm :is(input,select){font-size:17px}
 .brand-copy{min-width:0}
 @media(max-width:600px){.topbar{height:auto;min-height:72px}.hero-actions{flex-wrap:wrap}.brand-copy small{line-height:1.45}.hero h1{letter-spacing:normal}}
+</style><style>
+html[lang="ckb"] :where(body *) {letter-spacing:normal!important}
+#mapViewport.is-oblique #map {transform:matrix(1,0,-.19,.72,0,0);transform-origin:50% 50%}
+#qsTilt[aria-pressed="true"] {background:#244b3c;color:white}
+#mapViewport:not(.is-oblique) #raisedPlots {display:none}
 </style></head>
 <body>
 <header class="topbar" id="siteHeader"><a class="brand" href="#explorer" aria-label="سەرەکیی بەرزاییەکانی ڕانیە"><img src="ranya-leaf.png" alt="لۆگۆی بەرزاییەکانی ڕانیە"><span class="brand-copy"><strong data-en="Ranya Heights">بەرزاییەکانی ڕانیە</strong><small data-en="Ranya Heights, Heights of Life">بەرزاییەکانی ڕانیە، بەرزاییەکانی ژیان</small></span></a><nav class="topnav" aria-label="بەشەکانی ماڵپەڕ"><a href="#explorer" data-en="Explore map">پلانەکە</a><a href="#directory" data-en="Browse units">یەکەکان</a><a href="#designs" data-en="Project designs">دیزاینەکان</a></nav><div class="topright"><div class="lang-switch" role="group" aria-label="Language"><button id="langKu" class="current" type="button" aria-pressed="true">KU</button><button id="langEn" type="button" aria-pressed="false">EN</button></div><a class="top-link" href="#explorer" data-en="Open master plan">بینینی پلان <span aria-hidden="true">↗</span></a></div></header>
@@ -389,7 +394,12 @@ function setView(x,y,w){w=Math.min(Math.max(w,29),D.W*1.55);view={x,y,w,h:w*rati
 function fit(){const r=ratio();const target={x:40,y:140,w:1760,h:1400};let w=Math.max(target.w,target.h/r);setView((target.x+target.w/2)-w/2,(target.y+target.h/2)-(w*r)/2,w)}
 function zoomAt(cx,cy,f){const nw=Math.max(29,Math.min(view.w*f,D.W*1.55));const k=nw/view.w;setView(cx-(cx-view.x)*k,cy-(cy-view.y)*k,nw)}
 function mid(){return[view.x+view.w/2,view.y+view.h/2]}
-function mapPoint(evt){const r=svg.getBoundingClientRect();return [view.x+((evt.clientX-r.left)/r.width)*view.w,view.y+((evt.clientY-r.top)/r.height)*view.h]}
+function mapPoint(evt){
+ const point=svg.createSVGPoint();
+ point.x=evt.clientX; point.y=evt.clientY;
+ const world=point.matrixTransform(document.getElementById('terrain').getScreenCTM().inverse());
+ return [world.x,world.y];
+}
 function pointAround(cx,cy,w){w=Math.max(45,Math.min(w,D.W*1.4));setView(cx-w/2,cy-w*ratio()/2,w)}
 function focusZone(z){const ps=zones[z];if(!ps||!ps.length){fit();return}let xs=ps.map(p=>p[1]),ys=ps.map(p=>p[2]);const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);const w=Math.max(135,(maxx-minx)+135,((maxy-miny)+130)/ratio());pointAround((minx+maxx)/2,(miny+maxy)/2,w)}
 // Corner classification is separate from park distance. Only confirmed IDs belong here.
@@ -481,8 +491,8 @@ svg.addEventListener('pointermove',e=>{
  const previous=pointerMap.get(e.pointerId), rect=svg.getBoundingClientRect();
  pointerMap.set(e.pointerId,[e.clientX,e.clientY]);
  if(pointerMap.size===1){
-  view.x-=(e.clientX-previous[0])*view.w/rect.width;
-  view.y-=(e.clientY-previous[1])*view.h/rect.height;
+  const before=mapPoint({clientX:previous[0],clientY:previous[1]}),after=mapPoint(e);
+  view.x+=before[0]-after[0];view.y+=before[1]-after[1];
   apply();
  }else if(pointerMap.size===2){
   const [a,b]=pointerMap.values(),distance=Math.hypot(a[0]-b[0],a[1]-b[1]);
@@ -490,7 +500,8 @@ svg.addEventListener('pointermove',e=>{
   if(pinchDistance>1&&distance>1){
    const [x,y]=mapPoint({clientX:midX-(e.clientX-previous[0])/2,clientY:midY-(e.clientY-previous[1])/2});
    const width=Math.max(29,Math.min(view.w*pinchDistance/distance,D.W*1.55));
-   setView(x-(midX-rect.left)*width/rect.width,y-(midY-rect.top)*width*ratio()/rect.height,width);
+   const midWorld=mapPoint({clientX:midX,clientY:midY});
+   setView(x-(midWorld[0]-view.x)*width/view.w,y-(midWorld[1]-view.y)*width/view.w,width);
   }
   pinchDistance=distance;
  }
@@ -920,5 +931,47 @@ const quickResults=document.createElement('section');quickResults.id='qsResults'
  qsCount.textContent=matches.length+' ئەنجام';
  more();results.scrollIntoView({block:'center'});
  };
+})();
+</script><script>
+(() => {
+ const viewport=document.getElementById('mapViewport');
+ const terrain=document.getElementById('terrain');
+ const toggle=document.getElementById('qsTilt');
+ function buildRelief(){
+   const ns=terrain.namespaceURI, layer=document.createElementNS(ns,'g');
+   layer.id='raisedPlots'; layer.setAttribute('pointer-events','none');
+   layer.setAttribute('aria-hidden','true');
+   const blocks=[];
+   for(const parcel of terrain.querySelectorAll('path[data-parcel-id]')){
+     const outline=parcel.getAttribute('d');
+     // The site plan stores closed parcel outlines as absolute M/L polygons.
+     if(!/^M[-.\d LZ]+$/i.test(outline)||!outline.endsWith('Z'))continue;
+     const points=Array.from(outline.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g),m=>[+m[1],+m[2]]);
+     if(points.length<3)continue;
+     const box=parcel.getBBox(),cx=box.x+box.width/2,cy=box.y+box.height/2;
+     if(box.width<3||box.height<3)continue;
+     const base=points.map(([x,y])=>[cx+(x-cx)*.62,cy+(y-cy)*.62]);
+     const height=Math.min(6,box.height*.28);
+     const roof=base.map(([x,y])=>[x,y-height]);
+     const face=(points,fill)=>{
+       const p=document.createElementNS(ns,'polygon');
+       p.setAttribute('points',points.map(pair=>pair.join(',')).join(' '));p.setAttribute('fill',fill);
+       return p;
+     };
+     const group=document.createElementNS(ns,'g');
+     for(let i=0;i<base.length;i++){
+       const j=(i+1)%base.length;
+       group.append(face([base[i],base[j],roof[j],roof[i]],base[j][1]>base[i][1]?'#a18e75':'#baa78e'));
+     }
+     group.append(face(roof,'#ecdfc9')); blocks.push([cy,group]);
+   }
+   blocks.sort((a,b)=>a[0]-b[0]).forEach(([,node])=>layer.append(node));
+   terrain.after(layer);
+ }
+ toggle.addEventListener('click',()=>{
+   if(!document.getElementById('raisedPlots'))buildRelief();
+   const on=viewport.classList.toggle('is-oblique');
+   toggle.setAttribute('aria-pressed',String(on));
+ });
 })();
 </script></body></html>
